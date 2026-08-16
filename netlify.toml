@@ -1,0 +1,13 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Cache predictions for a few minutes at the CDN edge so we don't hammer the
+# football data API's free-tier rate limit (10 requests/minute).
+[[headers]]
+  for = "/.netlify/functions/predictions"
+  [headers.values]
+    Cache-Control = "public, max-age=120"

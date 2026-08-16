@@ -1,0 +1,11 @@
+{
+  "name": "matchglass",
+  "version": "1.0.0",
+  "description": "Statistical football match probability model, deployed on Netlify (frontend + serverless functions).",
+  "scripts": {
+    "dev": "netlify dev"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  }
+}

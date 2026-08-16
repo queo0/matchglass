@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Matchglass — statistical match probabilities</title>
+<meta name="description" content="Poisson-model match probabilities for football fixtures. Estimates, not guarantees." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+<div class="grain"></div>
+
+<header class="hero">
+  <p class="eyebrow">MATCHGLASS <span class="eyebrow-dim">/ statistical match probabilities</span></p>
+  <h1>Odds aren't certainties.<br>Here's the actual math.</h1>
+  <p class="lede">
+    Every fixture below is scored with a Poisson goal-expectancy model, built from
+    this season's scoring data for each side. No "sure games." No 95–100% claims.
+    Just calibrated probabilities you can weigh for yourself.
+  </p>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="competition">Competition</label>
+      <select id="competition">
+        <option value="PL">Premier League</option>
+        <option value="PD">La Liga</option>
+        <option value="BL1">Bundesliga</option>
+        <option value="SA">Serie A</option>
+        <option value="FL1">Ligue 1</option>
+        <option value="DED">Eredivisie</option>
+        <option value="PPL">Primeira Liga</option>
+        <option value="ELC">Championship</option>
+        <option value="CL">Champions League</option>
+      </select>
+    </div>
+    <p class="timestamp" id="generatedAt"></p>
+  </div>
+</header>
+
+<main id="matches" class="matches" aria-live="polite">
+  <p class="state-message">Loading fixtures…</p>
+</main>
+
+<footer class="site-footer">
+  <p>
+    Model: season-to-date Poisson goal-expectancy, home-advantage adjusted.
+    Fixtures &amp; scoring data via football-data.org. This is a probability
+    estimate for informational purposes — it is not betting advice, and past
+    accuracy does not guarantee future results.
+  </p>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>
