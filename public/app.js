@@ -12,6 +12,7 @@ const LEAGUES = [
   { code: "PPL", name: "Primeira Liga" },
   { code: "ELC", name: "Championship" },
   { code: "CL", name: "Champions League" },
+  { code: "BSA", name: "Brazil Série A" },
 ];
 
 const TOP_PICKS_COUNT = 10;
@@ -155,6 +156,20 @@ async function fetchLeague(code) {
   return data;
 }
 
+// Wraps fetchLeague with one retry after a pause. We can't perfectly predict
+// football-data.org's exact rate-limit behavior from outside, so rather than
+// over-engineer the pacing, this just retries a transient failure (e.g. a
+// 429) once before giving up on that league for this scan.
+async function fetchLeagueWithRetry(code, onRetryWait) {
+  try {
+    return await fetchLeague(code);
+  } catch (err) {
+    if (onRetryWait) onRetryWait();
+    await sleep(15000);
+    return await fetchLeague(code);
+  }
+}
+
 function renderMatches(data) {
   generatedAtEl.textContent = `Generated ${new Date(data.generatedAt).toLocaleString()} · ${data.model}`;
 
@@ -206,22 +221,26 @@ async function runTopPicksScan() {
   for (let b = 0; b < batches.length; b++) {
     const batch = batches[b];
 
-    const batchResults = await Promise.all(
-      batch.map(async (league) => {
-        leagueIndex++;
-        setProgress(`Scanning ${league.name}… (${leagueIndex}/${LEAGUES.length})`);
-        try {
-          const data = await fetchLeague(league.code);
-          leaguesScanned.push(league.name);
-          return (data.matches || []).map((m) => ({ ...m, competitionName: league.name, competitionCode: league.code }));
-        } catch (err) {
-          leaguesFailed.push(league.name);
-          return [];
-        }
-      })
-    );
-
-    batchResults.forEach((matches) => allMatches.push(...matches));
+    // Sequential, not Promise.all: firing every league in a batch at the
+    // exact same instant was bursty enough to trip the rate limit even
+    // though the batch total looked safe on paper. Processing one at a time
+    // (with a short stagger) spreads the load out naturally.
+    for (const league of batch) {
+      leagueIndex++;
+      setProgress(`Scanning ${league.name}… (${leagueIndex}/${LEAGUES.length})`);
+      try {
+        const data = await fetchLeagueWithRetry(league.code, () =>
+          setProgress(`${league.name} hit a rate limit — retrying in 15s… (${leagueIndex}/${LEAGUES.length})`)
+        );
+        leaguesScanned.push(league.name);
+        allMatches.push(
+          ...(data.matches || []).map((m) => ({ ...m, competitionName: league.name, competitionCode: league.code }))
+        );
+      } catch (err) {
+        leaguesFailed.push(league.name);
+      }
+      await sleep(1500); // small stagger between leagues within a batch
+    }
 
     const isLastBatch = b === batches.length - 1;
     if (!isLastBatch) {
@@ -261,7 +280,7 @@ function renderTopPicks(cache) {
 
   let statusLine = `Scanned ${leaguesScanned.length} league${leaguesScanned.length === 1 ? "" : "s"} · Generated ${new Date(generatedAt).toLocaleString()}`;
   if (leaguesFailed.length) {
-    statusLine += ` · Couldn't reach: ${leaguesFailed.join(", ")}`;
+    statusLine += ` · Rate-limited even after a retry: ${leaguesFailed.join(", ")}`;
   }
   generatedAtEl.textContent = statusLine;
 

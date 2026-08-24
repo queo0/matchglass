@@ -107,6 +107,40 @@ existing behavior if a historical call isn't available on your key, but
 it's worth checking after deploying that they're returning real data and not
 silently falling back every time.
 
+## Coverage: 10 leagues, including one outside Europe
+
+Verified live against football-data.org's current coverage page while
+building this: the free tier is **12 competitions total**, and — usefully —
+**Brazil's Série A is one of them**, alongside the 9 European leagues/cups
+already covered. It's now included as league code `BSA`. This is genuine,
+zero-cost South American coverage; going further (Argentina, MLS, Japan, and
+the rest) requires a paid tier, since football-data.org gates broader
+worldwide coverage behind Standard (€49/mo, 30 competitions), Advanced
+(€99/mo, 50 competitions), and Pro (€199/mo, 100 competitions) — verified
+current pricing, not a guess. Two other paid add-ons worth knowing about if
+you want to go further later: a **Statistics add-on (€15/mo)** that adds
+corners/cards/bookings data, and an **Odds add-on (€15/mo)** with real
+bookmaker pre-match odds — both would meaningfully extend what this model
+can do, but neither is wired in yet.
+
+## Rate-limit reliability
+
+Earlier versions of the Top Picks scan fired all of a batch's requests at
+the same instant, which — even though the batch's total stayed under the
+free tier's 10-requests/minute cap on paper — turned out to trip the rate
+limit in practice; bursts seem to matter, not just the per-minute average.
+Fixed two ways:
+- **Sequential fetching**, both inside each league's own function
+  (`predictions.js` now awaits standings, then fixtures, then previous
+  season, one at a time instead of firing two at once) and across leagues
+  in a Top Picks batch (processed one at a time with a short stagger,
+  instead of all at once via `Promise.all`).
+- **Retry with backoff**: if a league's request still fails, the scanner
+  waits 15 seconds and tries once more before giving up on that league for
+  the scan. The status line will say "Rate-limited even after a retry" for
+  any league that still couldn't be reached, so it's visible rather than
+  silently missing.
+
 ## Step 1 — Get a free football data API key
 
 1. Go to https://www.football-data.org/client/register and sign up (free tier).

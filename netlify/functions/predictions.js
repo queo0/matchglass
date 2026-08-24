@@ -28,10 +28,18 @@ exports.handler = async (event) => {
       process.env.DEFAULT_COMPETITION ||
       "PL";
 
-    const [standings, fixtures] = await Promise.all([
-      fetchJSON(`${FOOTBALL_DATA_BASE}/competitions/${competition}/standings`, apiKey),
-      fetchJSON(`${FOOTBALL_DATA_BASE}/competitions/${competition}/matches?status=SCHEDULED`, apiKey),
-    ]);
+    // Sequential rather than concurrent: firing standings + fixtures at the
+    // exact same instant, multiplied across several leagues in the Top Picks
+    // scan, was tripping football-data.org's rate limit in practice even
+    // though the per-minute total looked safe on paper. Spreading calls out
+    // naturally (one after another) instead of bursting them is more
+    // reliable, at the cost of each individual league request being a bit
+    // slower.
+    const standings = await fetchJSON(`${FOOTBALL_DATA_BASE}/competitions/${competition}/standings`, apiKey);
+    const fixtures = await fetchJSON(
+      `${FOOTBALL_DATA_BASE}/competitions/${competition}/matches?status=SCHEDULED`,
+      apiKey
+    );
 
     // Try to pull last season's final standings too, so early-season fixtures
     // (when every team has 0-4 games played) can lean on real per-team history
