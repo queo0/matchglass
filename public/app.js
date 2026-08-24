@@ -285,7 +285,15 @@ async function runTopPicksScan() {
     }
   }
 
-  const confident = allMatches.filter((m) => !m.lowSample);
+  // A match has real signal if EITHER it has enough current-season games,
+  // OR it leaned on prior-season data (which is genuine historical data, not
+  // a flat guess). Only exclude matches with neither — those are the true
+  // "everyone's average" cases with nothing real to rank on. Before this
+  // fix, `lowSample` alone was used here, which wrongly excluded every
+  // early-season match even when prior-season blending gave it a real,
+  // meaningful confidence number — collapsing the ranking pool down to
+  // whichever league happened to be further into its season already.
+  const confident = allMatches.filter((m) => !m.lowSample || m.usedPriorSeasonData);
   const pool = confident.length >= TOP_PICKS_COUNT ? confident : allMatches;
   const usedFallback = confident.length < TOP_PICKS_COUNT;
 

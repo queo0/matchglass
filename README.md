@@ -58,12 +58,17 @@ A few deliberate choices worth knowing about:
   more than any other match in the pool — it does not mean 72% of the time
   this specific game goes that way in some verified sense. Same honesty
   rules as the rest of the site apply.
-- **Matches flagged `lowSample` are excluded from ranking when possible.**
-  Early in a season, most/all matches only have league-average data to work
-  from (see "small sample" above) — ranking those by "confidence" would
-  just be ranking noise. The scan only falls back to including them if
-  there genuinely aren't 20 matches with real season data yet, and it says
-  so on-screen when that happens.
+- **Matches flagged `lowSample` are excluded from ranking, unless they used
+  prior-season data.** Early in a season, most/all matches only have
+  league-average data to work from (see "small sample" above) — ranking
+  those by "confidence" would just be ranking noise. But a match that's
+  `lowSample` (few current-season games) and also `usedPriorSeasonData`
+  (leaning on real history from last season) has genuine signal, so it's
+  included. An earlier version of this excluded every `lowSample` match
+  regardless, which meant the ranking pool collapsed down to whichever
+  league happened to already be further into its season — this is what
+  fixed it. The scan only falls back to including matches with no real
+  signal at all if there genuinely aren't 20 matches with real data yet.
 - **The scan takes a few minutes.** football-data.org's free tier is
   rate-limited to 10 requests/minute, and covering 10 leagues costs 30
   requests (standings + previous-season standings + fixtures per league).
