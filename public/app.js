@@ -15,7 +15,8 @@ const LEAGUES = [
   { code: "BSA", name: "Brazil Série A" },
 ];
 
-const TOP_PICKS_COUNT = 10;
+const TOP_PICKS_COUNT = 20;
+const MAX_PICKS_PER_LEAGUE = 6; // scaled proportionally with TOP_PICKS_COUNT (was 3 of 10)
 
 // football-data.org's free tier allows 10 requests/minute. Each league now
 // costs us 3 requests (standings + previous-season standings + fixtures),
@@ -191,6 +192,37 @@ function confidenceOf(m) {
   return Math.max(m.probabilities.homeWin, m.probabilities.draw, m.probabilities.awayWin);
 }
 
+// Picks the top N by confidence, but caps how many can come from any single
+// league. Without this, a league that happens to have more complete data
+// (e.g. further into its season than others) can crowd out every other
+// league entirely — which defeats the point of a "worldwide" ranking, even
+// though each individual number would still be honest. First pass enforces
+// the cap; if that leaves slots unfilled (too few leagues have real data),
+// a second pass fills the rest by confidence alone.
+function selectDiversePicks(sortedPool, count, maxPerLeague) {
+  const result = [];
+  const leagueCounts = {};
+
+  for (const m of sortedPool) {
+    if (result.length >= count) break;
+    const key = m.competitionCode || m.competitionName;
+    const used = leagueCounts[key] || 0;
+    if (used < maxPerLeague) {
+      result.push(m);
+      leagueCounts[key] = used + 1;
+    }
+  }
+
+  if (result.length < count) {
+    for (const m of sortedPool) {
+      if (result.length >= count) break;
+      if (!result.includes(m)) result.push(m);
+    }
+  }
+
+  return result;
+}
+
 function confidenceLabel(m) {
   const p = m.probabilities;
   if (p.homeWin >= p.draw && p.homeWin >= p.awayWin) return { side: `${m.homeTeam} win`, value: p.homeWin };
@@ -257,10 +289,11 @@ async function runTopPicksScan() {
   const pool = confident.length >= TOP_PICKS_COUNT ? confident : allMatches;
   const usedFallback = confident.length < TOP_PICKS_COUNT;
 
-  const picks = pool
-    .slice()
-    .sort((a, b) => confidenceOf(b) - confidenceOf(a))
-    .slice(0, TOP_PICKS_COUNT);
+  const picks = selectDiversePicks(
+    pool.slice().sort((a, b) => confidenceOf(b) - confidenceOf(a)),
+    TOP_PICKS_COUNT,
+    MAX_PICKS_PER_LEAGUE
+  );
 
   topPicksCache = {
     generatedAt: new Date().toISOString(),

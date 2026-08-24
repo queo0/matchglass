@@ -62,15 +62,24 @@ A few deliberate choices worth knowing about:
   Early in a season, most/all matches only have league-average data to work
   from (see "small sample" above) — ranking those by "confidence" would
   just be ranking noise. The scan only falls back to including them if
-  there genuinely aren't 10 matches with real season data yet, and it says
+  there genuinely aren't 20 matches with real season data yet, and it says
   so on-screen when that happens.
-- **The scan takes roughly 60–90 seconds.** football-data.org's free tier
-  is rate-limited to 10 requests/minute, and covering 9 leagues costs 18
-  requests (standings + fixtures per league). The frontend batches 5
-  leagues at a time and pauses between batches to stay under the limit,
-  with a visible progress readout the whole time. Results are cached in the
-  browser tab until you hit **Rescan**, so you're not re-paying that wait
-  every time you switch tabs.
+- **The scan takes a few minutes.** football-data.org's free tier is
+  rate-limited to 10 requests/minute, and covering 10 leagues costs 30
+  requests (standings + previous-season standings + fixtures per league).
+  The frontend processes leagues one at a time with a short pause between
+  each, and pauses longer between groups of 3 to stay under the limit, with
+  a visible progress readout the whole time. If a league still gets
+  rate-limited, it retries once after 15 seconds before giving up on it.
+  Results are cached in the browser tab until you hit **Rescan**, so you're
+  not re-paying that wait every time you switch tabs.
+- **A single league can't dominate the whole list.** No more than 3 of the
+  top 20 can come from any one league (`MAX_PICKS_PER_LEAGUE` in `app.js`).
+  Without this, a league that happens to be further into its season (and so
+  has more real data to differentiate teams with) can crowd out every other
+  league entirely — technically honest numbers, but it defeats the point of
+  a *worldwide* ranking. The cap only relaxes if there genuinely aren't
+  enough other leagues with real matches to fill the list otherwise.
 - **Only goals-based markets are ranked** (result, over/under 2.5, BTTS,
   correct score) — the free data source doesn't cover corners, cards, or
   bookings, so those aren't part of this feature. See "Extending it" below.
