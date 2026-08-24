@@ -18,13 +18,19 @@
   <p class="eyebrow">MATCHGLASS <span class="eyebrow-dim">/ statistical match probabilities</span></p>
   <h1>Odds aren't certainties.<br>Here's the actual math.</h1>
   <p class="lede">
-    Every fixture below is scored with a Poisson goal-expectancy model, built from
-    this season's scoring data for each side. No "sure games." No 95–100% claims.
+    Every fixture is scored with a Poisson goal-expectancy model, built from this
+    season's scoring data for each side. No "sure games." No 95–100% claims.
     Just calibrated probabilities you can weigh for yourself.
   </p>
 
+  <div class="tabs">
+    <button id="tabTopPicks" class="tab active">Top Picks (worldwide)</button>
+    <button id="tabBrowse" class="tab">Browse by League</button>
+    <button id="rescanBtn" class="rescan-btn" title="Re-scan all leagues">↻ Rescan</button>
+  </div>
+
   <div class="controls">
-    <div class="control-group">
+    <div class="control-group" id="browseControls" style="display:none">
       <label for="competition">Competition</label>
       <select id="competition">
         <option value="PL">Premier League</option>
@@ -40,6 +46,13 @@
     </div>
     <p class="timestamp" id="generatedAt"></p>
   </div>
+
+  <p class="scan-note">
+    Top Picks sweeps all 9 covered leagues and ranks fixtures by which outcome the
+    model is most confident about, leaning on last season's data too when this
+    season is still young. The free data source is rate-limited, so a full sweep
+    takes a couple of minutes — worth the wait for a proper cross-league view.
+  </p>
 </header>
 
 <main id="matches" class="matches" aria-live="polite">

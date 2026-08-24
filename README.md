@@ -43,6 +43,70 @@ season aggregate — it's a solid baseline, not a finished product. Matches
 early in a season get a "small sample" flag because there's less data to
 work with.
 
+## Top Picks (cross-league confidence ranking)
+
+The site's landing view is now **Top Picks**, not a single league. Instead
+of picking one competition, it sweeps all 9 covered leagues, scores every
+scheduled fixture with the same Poisson model above, and ranks the whole
+pool by **confidence** — how lopsided the model's own home/draw/away
+probabilities are for that match, not any external "certainty" claim.
+
+A few deliberate choices worth knowing about:
+
+- **It's a ranking of the model's own outputs, not a guarantee.** "#1 pick,
+  72% confidence" means the model's probability split favors one outcome
+  more than any other match in the pool — it does not mean 72% of the time
+  this specific game goes that way in some verified sense. Same honesty
+  rules as the rest of the site apply.
+- **Matches flagged `lowSample` are excluded from ranking when possible.**
+  Early in a season, most/all matches only have league-average data to work
+  from (see "small sample" above) — ranking those by "confidence" would
+  just be ranking noise. The scan only falls back to including them if
+  there genuinely aren't 10 matches with real season data yet, and it says
+  so on-screen when that happens.
+- **The scan takes roughly 60–90 seconds.** football-data.org's free tier
+  is rate-limited to 10 requests/minute, and covering 9 leagues costs 18
+  requests (standings + fixtures per league). The frontend batches 5
+  leagues at a time and pauses between batches to stay under the limit,
+  with a visible progress readout the whole time. Results are cached in the
+  browser tab until you hit **Rescan**, so you're not re-paying that wait
+  every time you switch tabs.
+- **Only goals-based markets are ranked** (result, over/under 2.5, BTTS,
+  correct score) — the free data source doesn't cover corners, cards, or
+  bookings, so those aren't part of this feature. See "Extending it" below.
+
+## Using historical data, not just this season
+
+Two features address the same underlying issue: early in a season, current-
+season stats alone aren't enough to tell teams apart.
+
+- **Prior-season blending.** Each team's attack/defense rating now blends
+  this season's data with last season's final numbers, weighted by how many
+  games have been played this season (`played / 5`, capped at 1). At 0 games
+  played, a team's rating is 100% last season's real data instead of a flat
+  "average" guess; by 5 games in, it's 100% current-season. Matches that
+  leaned on last season's data are marked `usedPriorSeasonData` and show a
+  "Uses last season's data" badge. This is best-effort — if a competition or
+  key doesn't allow querying past seasons, it fails quietly and falls back
+  to the original flat-average behavior (no broken page).
+- **Head-to-head lookup.** Every match card has a "Head-to-head" toggle that
+  lazily fetches the historical record between those two specific teams
+  (past meetings, W/D/L split, last 5 scorelines) via
+  `netlify/functions/head2head.js`. It's on-demand, not fetched automatically
+  for every fixture, specifically to avoid multiplying API calls across a
+  9-league Top Picks scan. Head-to-head samples are usually small (a handful
+  of meetings), so it's presented as historical context, not a prediction
+  signal — same anti-hype approach as everywhere else on the site.
+
+**Worth knowing:** the exact depth of historical data football-data.org's
+free tier allows (how many past seasons, head-to-head coverage per
+competition) wasn't verified against the live API while building this —
+this environment can only reach package registries, not football-data.org
+itself. Both features are written to fail gracefully and fall back to
+existing behavior if a historical call isn't available on your key, but
+it's worth checking after deploying that they're returning real data and not
+silently falling back every time.
+
 ## Step 1 — Get a free football data API key
 
 1. Go to https://www.football-data.org/client/register and sign up (free tier).
@@ -119,8 +183,16 @@ Good next steps, roughly in order of value:
   show your own historical accuracy on the site. This is the single best
   thing you can do for credibility — real, visible track records beat any
   marketing copy.
-- **More markets** — Asian handicap, correct score, first-team-to-score —
-  all extensions of the same Poisson grid already being computed.
+- **More goals-based markets** — Asian handicap, correct score, first-team-
+  to-score — all extensions of the same Poisson grid already being computed.
+- **Cards, corners, bookings, first goalscorer** — these are genuinely out
+  of reach on the current free data source, which only reports goals and
+  results. They'd need a different/additional provider (e.g. a paid tier
+  with match-event data) plus a separate statistical model, since Poisson
+  goal-expectancy doesn't extend to those markets on its own.
+- **True worldwide coverage** — the current 9 leagues are all European. South
+  America, Asia, and the rest of Africa would need another data source
+  layered in alongside football-data.org.
 
 ## Why not 95–100%?
 

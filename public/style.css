@@ -76,6 +76,57 @@ h1 {
   margin: 0 0 36px;
 }
 
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  background: transparent;
+  color: var(--chalk-dim);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 9px 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.tab:hover { color: var(--chalk); border-color: var(--turf-dim); }
+.tab.active {
+  color: var(--bg);
+  background: var(--amber);
+  border-color: var(--amber);
+  font-weight: 600;
+}
+
+.rescan-btn {
+  margin-left: auto;
+  background: transparent;
+  color: var(--chalk-dim);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 9px 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.rescan-btn:hover { color: var(--chalk); border-color: var(--turf-dim); }
+.rescan-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.scan-note {
+  font-size: 13px;
+  color: var(--chalk-dim);
+  max-width: 60ch;
+  margin: 4px 0 0;
+}
+
 .controls {
   display: flex;
   align-items: center;
@@ -180,11 +231,61 @@ a:focus-visible {
 }
 .teams .vs { color: var(--chalk-dim); font-weight: 500; padding: 0 8px; font-size: 15px; }
 
+.rank-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--bg);
+  background: var(--amber);
+  border-radius: 4px;
+  padding: 1px 7px;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+
+.match-head-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.league-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--chalk-dim);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
 .kickoff {
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--chalk-dim);
   white-space: nowrap;
+}
+
+.confidence-row { margin-bottom: 10px; }
+
+.confidence-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--turf);
+  border: 1px solid var(--turf-dim);
+  border-radius: 4px;
+  padding: 3px 10px;
+}
+
+.small-sample-banner {
+  color: var(--amber) !important;
+  padding: 12px 14px !important;
+  border: 1px solid var(--amber);
+  border-radius: 8px;
+  font-family: var(--font-body) !important;
+  font-size: 13px !important;
 }
 
 /* signature element: segmented scoreboard probability bar */
@@ -238,6 +339,12 @@ a:focus-visible {
 }
 .meta-stats strong { color: var(--chalk); font-weight: 600; }
 
+.match-flags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .low-sample-flag {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -247,6 +354,69 @@ a:focus-visible {
   padding: 2px 8px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.prior-season-flag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--turf);
+  border: 1px solid var(--turf-dim);
+  border-radius: 4px;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.h2h-toggle {
+  margin-top: 14px;
+  background: transparent;
+  color: var(--chalk-dim);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+.h2h-toggle:hover { color: var(--chalk); border-color: var(--turf-dim); }
+
+.h2h-panel {
+  display: none;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+.h2h-panel.open { display: block; }
+
+.h2h-loading { font-family: var(--font-mono); font-size: 12px; color: var(--chalk-dim); }
+.h2h-loading.error { color: var(--brick); }
+.h2h-empty { font-family: var(--font-mono); font-size: 12px; color: var(--chalk-dim); }
+
+.h2h-record {
+  font-size: 13px;
+  color: var(--chalk);
+  margin: 0 0 8px;
+}
+.h2h-record strong { color: var(--amber); }
+
+.h2h-recent {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--chalk-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.h2h-date { color: var(--chalk-dim); opacity: 0.7; }
+
+.h2h-disclaimer {
+  font-size: 11px;
+  color: var(--chalk-dim);
+  opacity: 0.8;
+  margin: 0;
 }
 
 .site-footer {

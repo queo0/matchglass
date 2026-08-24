@@ -33,21 +33,34 @@ exports.handler = async (event) => {
       fetchJSON(`${FOOTBALL_DATA_BASE}/competitions/${competition}/matches?status=SCHEDULED`, apiKey),
     ]);
 
-    const teamStats = buildTeamStats(standings);
+    // Try to pull last season's final standings too, so early-season fixtures
+    // (when every team has 0-4 games played) can lean on real per-team history
+    // instead of falling back to a flat league-average guess for everyone.
+    // This is best-effort: some free-tier keys/competitions may not allow
+    // historical season queries, so a failure here just means we skip the
+    // blend and fall back to the previous (season-average-only) behavior.
+    const previousStandings = await fetchPreviousSeasonStandings(competition, standings, apiKey);
+
+    const teamStats = buildTeamStats(standings, previousStandings);
     const upcoming = (fixtures.matches || []).slice(0, 20); // keep payload light
+
+    const competitionName = (fixtures.competition && fixtures.competition.name) || competition;
 
     const matches = upcoming
       .map((m) => buildMatchPrediction(m, teamStats))
-      .filter(Boolean);
+      .filter(Boolean)
+      .map((m) => ({ ...m, competitionCode: competition, competitionName }));
 
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        competition: (fixtures.competition && fixtures.competition.name) || competition,
+        competition: competitionName,
+        competitionCode: competition,
         generatedAt: new Date().toISOString(),
         model: "Poisson goal-expectancy model (season-to-date attack/defense strength)",
         matches,
+        usingHistoricalPrior: teamStats.usingPreviousSeason,
         disclaimer:
           "These are statistical probabilities derived from season-to-date scoring data, not certainties or guarantees. No legitimate model predicts football outcomes at 95-100% accuracy. Treat every figure here as an estimate that can and will be wrong sometimes.",
       }),
@@ -68,25 +81,60 @@ async function fetchJSON(url, apiKey) {
   return res.json();
 }
 
+// Best-effort fetch of last season's final standings, used as a historical
+// prior for early-season predictions. Returns null (not a throw) on any
+// failure — free-tier keys or certain competitions may not permit querying
+// past seasons, and that should degrade gracefully, not break the page.
+async function fetchPreviousSeasonStandings(competition, currentStandings, apiKey) {
+  try {
+    const startYear = guessSeasonStartYear(currentStandings);
+    if (!startYear) return null;
+
+    const previousStartYear = startYear - 1;
+    return await fetchJSON(
+      `${FOOTBALL_DATA_BASE}/competitions/${competition}/standings?season=${previousStartYear}`,
+      apiKey
+    );
+  } catch (err) {
+    return null;
+  }
+}
+
+// football-data.org standings responses typically include a top-level
+// `season.startDate` (e.g. "2026-08-15"). Parse the year from that; if it's
+// missing for any reason, fall back to a simple calendar-based guess (most
+// European domestic seasons start July/August).
+function guessSeasonStartYear(standings) {
+  const startDate = standings && standings.season && standings.season.startDate;
+  if (startDate) {
+    const year = parseInt(String(startDate).slice(0, 4), 10);
+    if (!Number.isNaN(year)) return year;
+  }
+  const now = new Date();
+  const month = now.getUTCMonth() + 1; // 1-12
+  return month >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+}
+
 // ---------- team strength model ----------
 
-function buildTeamStats(standings) {
+function extractTeamRows(standingsResponse) {
   const totalTable =
-    (standings.standings || []).find((s) => s.type === "TOTAL") ||
-    (standings.standings || [])[0];
+    (standingsResponse && (standingsResponse.standings || []).find((s) => s.type === "TOTAL")) ||
+    (standingsResponse && (standingsResponse.standings || [])[0]);
+  return (totalTable && totalTable.table) || [];
+}
 
-  const rows = (totalTable && totalTable.table) || [];
-
+// Builds a simple attack/defense map (relative to that table's own league
+// average) for one season's standings table. Used for both current and
+// previous season so they're on comparable footing before blending.
+function buildSeasonMap(rows) {
   let sumGoalsFor = 0;
   let sumPlayed = 0;
   rows.forEach((r) => {
-    sumGoalsFor += r.goalsFor;
-    sumPlayed += r.playedGames;
+    sumGoalsFor += r.goalsFor || 0;
+    sumPlayed += r.playedGames || 0;
   });
 
-  // League-wide average goals scored per team per match. If the season just
-  // started and there's no data yet, fall back to a reasonable prior (1.35,
-  // roughly the long-run average across major European leagues).
   const leagueAvgGoals = sumPlayed > 0 ? sumGoalsFor / sumPlayed : 1.35;
 
   const map = {};
@@ -94,22 +142,55 @@ function buildTeamStats(standings) {
     const played = r.playedGames || 0;
     const goalsFor = r.goalsFor || 0;
     const goalsAgainst = r.goalsAgainst || 0;
-
-    // Guard against div-by-zero for teams with no games played yet.
-    const attack = played > 0 ? goalsFor / played / leagueAvgGoals : 1;
-    const defense = played > 0 ? goalsAgainst / played / leagueAvgGoals : 1;
-
     map[r.team.id] = {
       name: r.team.name,
       played,
       goalsFor,
       goalsAgainst,
-      attack,
-      defense,
+      attack: played > 0 ? goalsFor / played / leagueAvgGoals : 1,
+      defense: played > 0 ? goalsAgainst / played / leagueAvgGoals : 1,
     };
   });
 
   return { map, leagueAvgGoals };
+}
+
+// Combines current-season and previous-season team strength. Early in a
+// season (few games played), a team's rating leans heavily on last season's
+// actual data instead of a flat "1.0 = average" guess for everyone — real
+// history instead of no information. As more current-season games accumulate
+// (up to MIN_GAMES_FOR_CONFIDENCE), the blend shifts toward the current
+// season, since recent form matters more the more of it we have.
+function buildTeamStats(currentStandings, previousStandingsResponse) {
+  const current = buildSeasonMap(extractTeamRows(currentStandings));
+  const previousRows = previousStandingsResponse ? extractTeamRows(previousStandingsResponse) : [];
+  const previous = previousRows.length ? buildSeasonMap(previousRows) : null;
+
+  const map = {};
+  Object.keys(current.map).forEach((teamId) => {
+    const cur = current.map[teamId];
+    const prev = previous && previous.map[teamId];
+
+    const blendWeight = clamp(cur.played / MIN_GAMES_FOR_CONFIDENCE, 0, 1);
+    const attack = prev ? blendWeight * cur.attack + (1 - blendWeight) * prev.attack : cur.attack;
+    const defense = prev ? blendWeight * cur.defense + (1 - blendWeight) * prev.defense : cur.defense;
+
+    map[teamId] = {
+      name: cur.name,
+      played: cur.played,
+      goalsFor: cur.goalsFor,
+      goalsAgainst: cur.goalsAgainst,
+      attack,
+      defense,
+      usedPriorSeason: Boolean(prev) && blendWeight < 1,
+    };
+  });
+
+  return {
+    map,
+    leagueAvgGoals: current.leagueAvgGoals,
+    usingPreviousSeason: Boolean(previous),
+  };
 }
 
 // ---------- Poisson model ----------
@@ -228,6 +309,7 @@ function buildMatchPrediction(match, teamStats) {
     sampleSize: { homePlayed: home.played, awayPlayed: away.played },
     lowSample:
       home.played < MIN_GAMES_FOR_CONFIDENCE || away.played < MIN_GAMES_FOR_CONFIDENCE,
+    usedPriorSeasonData: Boolean(home.usedPriorSeason || away.usedPriorSeason),
   };
 }
 
